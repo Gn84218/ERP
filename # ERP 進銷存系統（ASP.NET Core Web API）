@@ -1,0 +1,24 @@
+本專案為一套使用 ASP.NET Core Web API 開發的進銷存系統，
+採用 Clean Architecture 分層設計，實作企業常見的採購、銷售與庫存管理流程。
+
+系統包含商品、倉庫、供應商、客戶主檔，
+以及採購單（PO）、收貨單（GRN）、銷售單（SO）、出貨（Shipment）、調撥（Transfer）等流程，
+並搭配庫存台帳（Stock Ledger）與庫存結餘（Inventory Balance）確保庫存正確性。
+
+系統架構:
+ERP.API            → Controller（對外 API）
+ERP.Application    → DTO、介面、商業流程
+ERP.Domain         → Entity（核心模型）
+ERP.Infrastructure → 資料庫、Service、Redis
+ERP.Tests          → 單元測試
+
+核心功能:
+✔ 商品 / 倉庫 / 客戶 / 供應商管理
+✔ 採購單（PO） → 收貨入庫（GRN）
+✔ 銷售單（SO） → 出貨（Shipment）
+✔ 調撥（Transfer）
+✔ 庫存台帳（Stock Ledger）
+✔ 庫存結餘（Inventory Balance）
+✔ 防負庫存機制
+✔ JWT 登入與角色權限（RBAC）
+✔ Redis 快取（Cache Aside Pattern）

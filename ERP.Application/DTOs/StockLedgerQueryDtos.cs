@@ -19,7 +19,9 @@ namespace ERP.Application.DTOs
         DateTime TxnAtUtc,     // 異動時間
         string RefType,        // 單據類型（PO/SO/GRN...）
         string RefNo,          // 單號
-        string? Remark         // 備註
+        string? Remark,        // 備註
+        string? ProductName = null,
+        string? WarehouseName = null
     );
 
     /*

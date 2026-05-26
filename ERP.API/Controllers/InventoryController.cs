@@ -22,7 +22,7 @@ namespace ERP.API.Controllers
         }
 
         //  新增：入庫 API
-        [HttpPost("stock-in")]
+        [HttpPost("stock-in/入庫")]
         public async Task<ActionResult<StockInResponse>> StockIn(StockInRequest req, CancellationToken ct)
         {
             var result = await _inventoryService.StockInAsync(req, ct);
@@ -30,7 +30,7 @@ namespace ERP.API.Controllers
         }
 
         //  新增：出庫 API
-        [HttpPost("stock-out")]
+        [HttpPost("stock-out/出庫")]
         public async Task<ActionResult<StockOutResponse>> StockOut(StockOutRequest req, CancellationToken ct)
         {
             var result = await _inventoryService.StockOutAsync(req, ct);
@@ -38,7 +38,7 @@ namespace ERP.API.Controllers
         }
 
         //庫存結餘 根據商品ID
-        [HttpGet("balances")]
+        [HttpGet("balances/庫存結餘")]
         public async Task<ActionResult<InventoryBalanceResponse>> GetBalances([FromQuery] Guid productId, CancellationToken ct)
         {
             var result=await _inventoryService.GetBalancesByProductAsync(productId, ct);
@@ -46,7 +46,7 @@ namespace ERP.API.Controllers
         }
 
         //查庫存台帳 分頁+搜尋關鍵字
-        [HttpGet("ledger")]
+        [HttpGet("ledger/查庫存台帳")]
          public async Task<ActionResult<PagedResult<StockLedgerItemResponse>>> GetLedger(
          [FromQuery] Guid? productId,
          [FromQuery] Guid? warehouseId,

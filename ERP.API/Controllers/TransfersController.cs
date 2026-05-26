@@ -15,12 +15,20 @@ namespace ERP.API.Controllers
             _svc = svc;
         }
 
-        [HttpPost]
-        public async Task<IActionResult> Create(CreateTransferRequest req)
-            => Ok(await _svc.CreateAsync(req));
+        [HttpPost("新增調撥單")]
+        public async Task<ActionResult<TransferResponse>> Create(CreateTransferRequest req, CancellationToken ct)
+            => Ok(await _svc.CreateAsync(req, ct));
 
-        [HttpPost("{id}/post")]
-        public async Task<IActionResult> Post(Guid id)
-            => Ok(await _svc.PostAsync(id));
+        [HttpGet("{id:guid}/獲取調撥單明細")]
+        public async Task<ActionResult<TransferResponse>> GetById(Guid id, CancellationToken ct)
+            => Ok(await _svc.GetByIdAsync(id, ct));
+
+        [HttpGet("查詢")]
+        public async Task<ActionResult<IReadOnlyList<TransferResponse>>> GetAll(CancellationToken ct)
+            => Ok(await _svc.GetAllAsync(ct));
+
+        [HttpPost("{id:guid}/post/調撥單核准")]
+        public async Task<ActionResult<TransferResponse>> Post(Guid id, CancellationToken ct)
+            => Ok(await _svc.PostAsync(id, ct));
     }
 }

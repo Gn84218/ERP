@@ -33,7 +33,8 @@ namespace ERP.Application.DTOs
         Guid Id,
         Guid ProductId,
         decimal ReceivedQty,
-        decimal UnitCost
+        decimal UnitCost,
+        string? ProductName = null
     );
     //回傳表頭 + 明細
     public record GoodsReceiptResponse(

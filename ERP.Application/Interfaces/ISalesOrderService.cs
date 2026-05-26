@@ -15,5 +15,7 @@ public interface ISalesOrderService
 
     Task<SalesOrderResponse> GetByIdAsync(Guid id, CancellationToken ct = default);
 
+    Task<IReadOnlyList<SalesOrderResponse>> GetAllAsync(CancellationToken ct = default);
+
     Task<SalesOrderResponse> ApproveAsync(Guid id, CancellationToken ct = default);
 }

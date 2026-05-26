@@ -66,6 +66,11 @@ namespace ERP.Infrastructure.Services
 
             if (po is null) throw new InvalidOperationException("找不到採購單。");
 
+            var productNames = await _db.Products
+                .AsNoTracking()
+                .Where(x => po.Lines.Select(l => l.ProductId).Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+
             return new PurchaseOrderResponse(
                 po.Id,
                 po.No,
@@ -73,8 +78,42 @@ namespace ERP.Infrastructure.Services
                 po.Status,
                 po.CreatedAtUtc,
                 po.ApprovedAtUtc,
-                po.Lines.Select(l => new PurchaseOrderLineResponse(l.Id, l.ProductId, l.Qty, l.UnitCost)).ToList()
+                po.Lines.Select(l => new PurchaseOrderLineResponse(
+                    l.Id,
+                    l.ProductId,
+                    l.Qty,
+                    l.UnitCost,
+                    productNames.GetValueOrDefault(l.ProductId)
+                )).ToList()
             );
+        }
+
+        public async Task<IReadOnlyList<PurchaseOrderResponse>> GetAllAsync(CancellationToken ct = default)
+        {
+            return await _db.PurchaseOrders
+                .AsNoTracking()
+                .Include(x => x.Lines)
+                .OrderByDescending(x => x.CreatedAtUtc)
+                .Take(100)
+                .Select(po => new PurchaseOrderResponse(
+                    po.Id,
+                    po.No,
+                    po.SupplierId,
+                    po.Status,
+                    po.CreatedAtUtc,
+                    po.ApprovedAtUtc,
+                    po.Lines.Select(l => new PurchaseOrderLineResponse(
+                        l.Id,
+                        l.ProductId,
+                        l.Qty,
+                        l.UnitCost,
+                        _db.Products
+                            .Where(p => p.Id == l.ProductId)
+                            .Select(p => p.Name)
+                            .FirstOrDefault()
+                    )).ToList()
+                ))
+                .ToListAsync(ct);
         }
 
         public async Task<PurchaseOrderResponse> ApproveAsync(Guid id, CancellationToken ct = default)

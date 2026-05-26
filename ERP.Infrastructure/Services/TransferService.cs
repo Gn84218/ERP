@@ -61,6 +61,11 @@ namespace ERP.Infrastructure.Services
 
             if (t == null) throw new InvalidOperationException("找不到調撥單");
 
+            var productNames = await _db.Products
+                .AsNoTracking()
+                .Where(x => t.Lines.Select(l => l.ProductId).Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+
             return new TransferResponse(
                 t.Id,
                 t.No,
@@ -69,54 +74,93 @@ namespace ERP.Infrastructure.Services
                 t.Status,
                 t.CreatedAtUtc,
                 t.PostedAtUtc,
-                t.Lines.Select(l => new TransferLineResponse(l.Id, l.ProductId, l.Qty)).ToList()
+                t.Lines.Select(l => new TransferLineResponse(
+                    l.Id,
+                    l.ProductId,
+                    l.Qty,
+                    productNames.GetValueOrDefault(l.ProductId)
+                )).ToList()
             );
+        }
+
+        public async Task<IReadOnlyList<TransferResponse>> GetAllAsync(CancellationToken ct = default)
+        {
+            return await _db.Transfers
+                .AsNoTracking()
+                .Include(x => x.Lines)
+                .OrderByDescending(x => x.CreatedAtUtc)
+                .Take(100)
+                .Select(t => new TransferResponse(
+                    t.Id,
+                    t.No,
+                    t.FromWarehouseId,
+                    t.ToWarehouseId,
+                    t.Status,
+                    t.CreatedAtUtc,
+                    t.PostedAtUtc,
+                    t.Lines.Select(l => new TransferLineResponse(
+                        l.Id,
+                        l.ProductId,
+                        l.Qty,
+                        _db.Products
+                            .Where(p => p.Id == l.ProductId)
+                            .Select(p => p.Name)
+                            .FirstOrDefault()
+                    )).ToList()
+                ))
+                .ToListAsync(ct);
         }
 
         public async Task<TransferResponse> PostAsync(Guid id, CancellationToken ct)
         {
-            var t = await _db.Transfers
-                .Include(x => x.Lines)
-                .SingleOrDefaultAsync(x => x.Id == id, ct);
-
-            if (t == null) throw new InvalidOperationException("找不到調撥單");
-
-            if (t.Status != TransferStatus.Draft)
-                throw new InvalidOperationException("不是 Draft 不能過帳");
-
-            //交易確保資料一致性
-            await using var tx = await _db.Database.BeginTransactionAsync(ct);
-
-            t.Status = TransferStatus.Posted;
-            t.PostedAtUtc = DateTime.UtcNow;
-
-            foreach (var line in t.Lines)
+            var strategy = _db.Database.CreateExecutionStrategy();
+            var transferId = await strategy.ExecuteAsync(async () =>
             {
-                // 來源倉庫 → 出庫
-                await _inventory.StockOutAsync(new StockOutRequest(
-                    line.ProductId,
-                    t.FromWarehouseId,
-                    line.Qty,
-                    "TRANSFER",
-                    t.No,
-                    "調撥出庫"
-                ), ct);
+                //交易確保資料一致性
+                await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
-                // 目標倉庫 → 入庫
-                await _inventory.StockInAsync(new StockInRequest(
-                    line.ProductId,
-                    t.ToWarehouseId,
-                    line.Qty,
-                    "TRANSFER",
-                    t.No,
-                    "調撥入庫"
-                ), ct);
-            }
+                var t = await _db.Transfers
+                    .Include(x => x.Lines)
+                    .SingleOrDefaultAsync(x => x.Id == id, ct);
 
-            await _db.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct); //確保出庫和入庫要一起成功或一起失敗
+                if (t == null) throw new InvalidOperationException("找不到調撥單");
 
-            return await GetByIdAsync(t.Id, ct);
+                if (t.Status != TransferStatus.Draft)
+                    throw new InvalidOperationException("不是 Draft 不能過帳");
+
+                t.Status = TransferStatus.Posted;
+                t.PostedAtUtc = DateTime.UtcNow;
+
+                foreach (var line in t.Lines)
+                {
+                    // 來源倉庫 → 出庫
+                    await _inventory.StockOutAsync(new StockOutRequest(
+                        line.ProductId,
+                        t.FromWarehouseId,
+                        line.Qty,
+                        "TRANSFER",
+                        t.No,
+                        "調撥出庫"
+                    ), ct);
+
+                    // 目標倉庫 → 入庫
+                    await _inventory.StockInAsync(new StockInRequest(
+                        line.ProductId,
+                        t.ToWarehouseId,
+                        line.Qty,
+                        "TRANSFER",
+                        t.No,
+                        "調撥入庫"
+                    ), ct);
+                }
+
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct); //確保出庫和入庫要一起成功或一起失敗
+
+                return t.Id;
+            });
+
+            return await GetByIdAsync(transferId, ct);
         }
     }
 }

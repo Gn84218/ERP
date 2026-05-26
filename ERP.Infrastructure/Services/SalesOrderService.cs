@@ -77,6 +77,11 @@ namespace ERP.Infrastructure.Services
             if (so is null)
                 throw new InvalidOperationException("找不到銷售單。");
 
+            var productNames = await _db.Products
+                .AsNoTracking()
+                .Where(x => so.Lines.Select(l => l.ProductId).Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+
             return new SalesOrderResponse(
                 so.Id,
                 so.No,
@@ -88,9 +93,38 @@ namespace ERP.Infrastructure.Services
                     l.Id,
                     l.ProductId,
                     l.Qty,
-                    l.UnitPrice
+                    l.UnitPrice,
+                    productNames.GetValueOrDefault(l.ProductId)
                 )).ToList()
             );
+        }
+
+        public async Task<IReadOnlyList<SalesOrderResponse>> GetAllAsync(CancellationToken ct = default)
+        {
+            return await _db.SalesOrders
+                .AsNoTracking()
+                .Include(x => x.Lines)
+                .OrderByDescending(x => x.CreatedAtUtc)
+                .Take(100)
+                .Select(so => new SalesOrderResponse(
+                    so.Id,
+                    so.No,
+                    so.CustomerId,
+                    so.Status,
+                    so.CreatedAtUtc,
+                    so.ApprovedAtUtc,
+                    so.Lines.Select(l => new SalesOrderLineResponse(
+                        l.Id,
+                        l.ProductId,
+                        l.Qty,
+                        l.UnitPrice,
+                        _db.Products
+                            .Where(p => p.Id == l.ProductId)
+                            .Select(p => p.Name)
+                            .FirstOrDefault()
+                    )).ToList()
+                ))
+                .ToListAsync(ct);
         }
 
         public async Task<SalesOrderResponse> ApproveAsync(Guid id, CancellationToken ct = default)

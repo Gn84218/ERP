@@ -52,7 +52,7 @@ namespace ERP.Application.Interfaces.Services
             _db.Products.Add(entity);
             await _db.SaveChangesAsync(ct);
             //刪除舊得快取
-            await _cache.RemoveAsync("products:page:1:size:20", ct);
+            await ClearProductListCacheAsync(ct);
             // 回傳 DTO：避免直接把 Entity 暴露出去
             return new ProductResponse(entity.Id, entity.Sku, entity.Name, entity.Cost, entity.Price, entity.IsActive);
         }
@@ -70,18 +70,26 @@ namespace ERP.Application.Interfaces.Services
              */
             var cacheKey = $"products:page:{page}:size:{pageSize}";
 
-            // 1. 先查 Redis是否已有快取
-            var cachedJson = await _cache.GetStringAsync(cacheKey, ct);
-
-            if (!string.IsNullOrWhiteSpace(cachedJson))
+            // 1. 先查 Redis 是否已有快取；Redis 失敗時仍然要能查 SQL。
+            try
             {
-                var cachedData = JsonSerializer.Deserialize<List<ProductResponse>>(cachedJson);//反序列化 (JSON格式轉回List)
+                var cachedJson = await _cache.GetStringAsync(cacheKey, ct);
 
-                if (cachedData != null)
+                if (!string.IsNullOrWhiteSpace(cachedJson))
                 {
-                    return cachedData;
+                    var cachedData = JsonSerializer.Deserialize<List<ProductResponse>>(cachedJson);//反序列化 (JSON格式轉回List)
+
+                    if (cachedData != null)
+                    {
+                        return cachedData;
+                    }
                 }
             }
+            catch
+            {
+                // 快取服務不可用時略過，避免商品查詢整個失敗。
+            }
+
             //2.沒快取再 查詢：排序 + Skip/Take（分頁）
             var data= await _db.Products
                 .OrderBy(x => x.Sku)
@@ -96,8 +104,51 @@ namespace ERP.Application.Interfaces.Services
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10) // 快取 10 分鐘
             };
             //3-2.存入快取 (LIST轉JOSN格式)
-            await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(data), options, ct);//序列化(LIST轉JOSN)
+            try
+            {
+                await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(data), options, ct);//序列化(LIST轉JOSN)
+            }
+            catch
+            {
+                // 快取寫入失敗不影響 SQL 查詢結果。
+            }
+
             return data;
         }
+
+        //更新
+        public async Task<UpdateProductResponse> UpdateAsync(Guid id, UpdateProductRequest req, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(req.Name))
+                throw new ArgumentException("商品名稱不可為空");
+
+            var Product =await _db.Products.SingleOrDefaultAsync(x => x.Id == id);
+            if (Product == null) throw new InvalidOperationException("找不到商品 Id 是否已被刪除");
+            //更新數據
+            Product.Name = req.Name.Trim();
+            Product.Cost = req.Cost;
+            Product.Price = req.Price;
+            Product.IsActive = req.IsActive;
+            
+            await _db.SaveChangesAsync(ct);
+            await ClearProductListCacheAsync(ct);
+            return new UpdateProductResponse(Product.Name, Product.Cost, Product.Price, Product.IsActive);
+            
+        }
+
+        private async Task ClearProductListCacheAsync(CancellationToken ct)
+        {
+            try
+            {
+                await _cache.RemoveAsync("products:page:1:size:20", ct);
+                await _cache.RemoveAsync("products:page:1:size:50", ct);
+                await _cache.RemoveAsync("products:page:1:size:100", ct);
+            }
+            catch
+            {
+                // Redis 不可用時，商品新增/更新仍應成功。
+            }
+        }
+
     }
 }

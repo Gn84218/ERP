@@ -16,11 +16,11 @@ namespace ERP.API.Controllers
             _svc = svc;
         }
 
-        [HttpPost]
+        [HttpPost("新增客戶")]
         public async Task<ActionResult<CustomerResponse>> Create(CreateCustomerRequest req, CancellationToken ct)
             => Ok(await _svc.CreateAsync(req, ct));
 
-        [HttpGet]
+        [HttpGet("獲取客戶資料")]
         public async Task<ActionResult<IReadOnlyList<CustomerResponse>>> GetAll(CancellationToken ct)
             => Ok(await _svc.GetAllAsync(ct));
     }

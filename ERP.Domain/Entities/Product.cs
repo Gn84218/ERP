@@ -31,3 +31,4 @@ namespace ERP.Domain.Entities
         public bool IsActive { get; set; } = true;
     }
 }
+

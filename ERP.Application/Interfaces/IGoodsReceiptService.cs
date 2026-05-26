@@ -11,6 +11,7 @@ namespace ERP.Application.Interfaces
     {
         Task<GoodsReceiptResponse> CreateAsync(CreateGoodsReceiptRequest req, CancellationToken ct = default);
         Task<GoodsReceiptResponse> GetByIdAsync(Guid id, CancellationToken ct = default);
+        Task<IReadOnlyList<GoodsReceiptResponse>> GetAllAsync(CancellationToken ct = default);
 
         //  過帳：Draft → Posted，並且「自動入庫」
         Task<GoodsReceiptResponse> PostAsync(Guid id, CancellationToken ct = default);

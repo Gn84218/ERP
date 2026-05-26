@@ -1,0 +1,36 @@
+
+services:
+
+  erp.sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: erp.sql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Gn840218"
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+  erp.redis:
+    image: redis:latest
+    container_name: erp.redis
+    ports:
+      - "6380:6379"
+  erp.api:
+    build:
+      context: .
+      dockerfile: ERP.API/Dockerfile
+    container_name: erp.api
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+    depends_on:
+      erp.sql:
+        condition: service_healthy
+      erp.redis:
+        condition: service_started

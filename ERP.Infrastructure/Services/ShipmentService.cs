@@ -110,42 +110,48 @@ namespace ERP.Infrastructure.Services
 
         public async Task<ShipmentResponse> ShipAsync(Guid id, CancellationToken ct = default)
         {
-            var shipment = await _db.Shipments
-                .Include(x => x.Lines)
-                .SingleOrDefaultAsync(x => x.Id == id, ct);
-
-            if (shipment is null)
-                throw new InvalidOperationException("找不到出貨單。");
-
-            if (shipment.Status != ShipmentStatus.Draft)
-                throw new InvalidOperationException("出貨單不是 Draft 狀態，不能出貨。");
-
-            // Transaction：改狀態 + 逐筆扣庫存 必須一致
-            await using var tx = await _db.Database.BeginTransactionAsync(ct);
-
-            shipment.Status = ShipmentStatus.Shipped;
-            shipment.ShippedAtUtc = DateTime.UtcNow;
-
-            foreach (var line in shipment.Lines)
+            var strategy = _db.Database.CreateExecutionStrategy();
+            var shipmentId = await strategy.ExecuteAsync(async () =>
             {
-                if (line.ShippedQty <= 0)
-                    throw new InvalidOperationException("出貨數量必須大於 0。");
+                // Transaction：改狀態 + 逐筆扣庫存 必須一致
+                await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
-                // 呼叫你現有的出庫引擎
-                await _inventoryService.StockOutAsync(new StockOutRequest(
-                    ProductId: line.ProductId,
-                    WarehouseId: shipment.WarehouseId,
-                    Qty: line.ShippedQty,
-                    RefType: "SHIP",
-                    RefNo: shipment.No,
-                    Remark: "出貨過帳自動扣庫存"
-                ), ct);
-            }
+                var shipment = await _db.Shipments
+                    .Include(x => x.Lines)
+                    .SingleOrDefaultAsync(x => x.Id == id, ct);
 
-            await _db.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
+                if (shipment is null)
+                    throw new InvalidOperationException("找不到出貨單。");
 
-            return await GetByIdAsync(shipment.Id, ct);
+                if (shipment.Status != ShipmentStatus.Draft)
+                    throw new InvalidOperationException("出貨單不是 Draft 狀態，不能出貨。");
+
+                shipment.Status = ShipmentStatus.Shipped;
+                shipment.ShippedAtUtc = DateTime.UtcNow;
+
+                foreach (var line in shipment.Lines)
+                {
+                    if (line.ShippedQty <= 0)
+                        throw new InvalidOperationException("出貨數量必須大於 0。");
+
+                    // 呼叫你現有的出庫引擎
+                    await _inventoryService.StockOutAsync(new StockOutRequest(
+                        ProductId: line.ProductId,
+                        WarehouseId: shipment.WarehouseId,
+                        Qty: line.ShippedQty,
+                        RefType: "SHIP",
+                        RefNo: shipment.No,
+                        Remark: "出貨過帳自動扣庫存"
+                    ), ct);
+                }
+
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+
+                return shipment.Id;
+            });
+
+            return await GetByIdAsync(shipmentId, ct);
         }
     }
 }

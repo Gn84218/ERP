@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ERP 管理系統</title>
+  <link rel="stylesheet" href="./styles.css?v=2026052603">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">ERP</span>
+        <div>
+          <strong>ERP 管理系統</strong>
+          <small>採購、銷售、庫存與調撥</small>
+        </div>
+      </div>
+      <nav class="nav" aria-label="主選單">
+        <button class="nav-item active" data-view="dashboard" type="button">總覽</button>
+        <button class="nav-item" data-view="products" type="button">商品</button>
+        <button class="nav-item" data-view="purchase" type="button">採購單</button>
+        <button class="nav-item" data-view="receipts" type="button">收貨單</button>
+        <button class="nav-item" data-view="sales" type="button">銷售單</button>
+        <button class="nav-item" data-view="transfers" type="button">調撥單</button>
+        <button class="nav-item" data-view="inventory" type="button">庫存</button>
+        <button class="nav-item" data-view="customers" type="button">客戶</button>
+        <button class="nav-item" data-view="suppliers" type="button">供應商</button>
+        <button class="nav-item" data-view="warehouses" type="button">倉庫</button>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">總覽</h1>
+          <p id="pageSubtitle">查看 ERP 基本資料與作業狀態</p>
+        </div>
+        <div class="session">
+          <span id="loginState" class="status-pill">尚未登入</span>
+          <button id="logoutBtn" class="ghost-button hidden" type="button">登出</button>
+        </div>
+      </header>
+
+      <section class="auth-panel" aria-label="登入與註冊">
+        <form id="loginForm" class="form-card">
+          <h2>登入</h2>
+          <label>帳號<input name="username" autocomplete="username" required></label>
+          <label>密碼<input name="password" type="password" autocomplete="current-password" required></label>
+          <button type="submit">登入</button>
+        </form>
+        <form id="registerForm" class="form-card">
+          <h2>註冊</h2>
+          <label>帳號<input name="username" autocomplete="username" required></label>
+          <label>密碼<input name="password" type="password" autocomplete="new-password" required></label>
+          <label>角色<select name="role" required><option value="Admin">管理者</option><option value="User">一般使用者</option></select></label>
+          <button type="submit">註冊</button>
+        </form>
+      </section>
+
+      <section id="message" class="message hidden" role="status"></section>
+
+      <section id="dashboardView" class="view active">
+        <div class="metric-grid">
+          <article class="metric"><span>商品</span><strong id="productCount">-</strong></article>
+          <article class="metric"><span>客戶</span><strong id="customerCount">-</strong></article>
+          <article class="metric"><span>供應商</span><strong id="supplierCount">-</strong></article>
+          <article class="metric"><span>倉庫</span><strong id="warehouseCount">-</strong></article>
+        </div>
+      </section>
+
+      <section id="productsView" class="view">
+        <div class="content-grid">
+          <form id="productForm" class="panel">
+            <h2>新增商品</h2>
+            <label>SKU<input name="sku" required></label>
+            <label>商品名稱<input name="name" required></label>
+            <label>成本<input name="cost" type="number" min="0" step="0.01" required></label>
+            <label>售價<input name="price" type="number" min="0" step="0.01" required></label>
+            <button type="submit">新增</button>
+          </form>
+          <div class="panel table-panel">
+            <div class="panel-title"><h2>商品列表</h2><button id="refreshProducts" class="ghost-button" type="button">重新整理</button></div>
+            <div class="table-wrap"><table><thead><tr><th>SKU</th><th>名稱</th><th>成本</th><th>售價</th><th>狀態</th></tr></thead><tbody id="productsTable"></tbody></table></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="purchaseView" class="view"></section>
+      <section id="receiptsView" class="view"></section>
+      <section id="salesView" class="view"></section>
+      <section id="transfersView" class="view"></section>
+
+      <section id="inventoryView" class="view">
+        <div class="content-grid">
+          <form id="inventoryForm" class="panel">
+            <h2>庫存異動</h2>
+            <label>商品<select name="productId" data-source="products" required></select></label>
+            <label>倉庫<select name="warehouseId" data-source="warehouses" required></select></label>
+            <label>數量<input name="qty" type="number" min="1" step="0.01" required></label>
+            <label>來源類型<input name="refType" placeholder="GRN / SO / TRANSFER" required></label>
+            <label>單號<input name="refNo" required></label>
+            <div class="button-row">
+              <button data-action="stock-in" type="submit">入庫</button>
+              <button data-action="stock-out" type="submit" class="secondary-button">出庫</button>
+            </div>
+          </form>
+          <div class="panel table-panel">
+            <div class="panel-title"><h2>庫存台帳</h2><button id="refreshLedger" class="ghost-button" type="button">查詢</button></div>
+            <div class="filter-bar">
+              <label>商品<select id="ledgerProductId" data-source="products" data-empty-label="全部商品"></select></label>
+              <label>倉庫<select id="ledgerWarehouseId" data-source="warehouses" data-empty-label="全部倉庫"></select></label>
+              <label>單號<input id="ledgerRefNo" placeholder="輸入單號"></label>
+            </div>
+            <div class="table-wrap"><table><thead><tr><th>時間</th><th>商品</th><th>倉庫</th><th>類型</th><th>數量</th><th>單號</th></tr></thead><tbody id="ledgerTable"></tbody></table></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="customersView" class="view master-view"></section>
+      <section id="suppliersView" class="view master-view"></section>
+      <section id="warehousesView" class="view master-view"></section>
+    </main>
+  </div>
+  <div id="detailModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="detailModalTitle">
+    <div class="modal-backdrop" data-close-modal></div>
+    <section class="modal-panel">
+      <div class="panel-title">
+        <div>
+          <h2 id="detailModalTitle">單據明細</h2>
+          <p id="detailModalSubtitle"></p>
+        </div>
+        <button class="ghost-button" data-close-modal type="button">關閉</button>
+      </div>
+      <div id="detailModalBody"></div>
+    </section>
+  </div>
+  <script src="./app.js?v=2026052603"></script>
+</body>
+</html>

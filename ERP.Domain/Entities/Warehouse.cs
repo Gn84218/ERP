@@ -4,8 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+// 倉庫實體類別
 namespace ERP.Domain.Entities
 {
+    
     public class Warehouse
     {
         public Guid Id { get; set; } = Guid.NewGuid();

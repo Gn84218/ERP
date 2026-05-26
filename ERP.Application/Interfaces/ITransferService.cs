@@ -9,10 +9,10 @@ namespace ERP.Application.Interfaces
 {
     public interface ITransferService
     {
-        Task<TransferResponse> CreateAsync(CreateTransferRequest req, CancellationToken ct = default);
-
+        Task<TransferResponse> CreateAsync(CreateTransferRequest req, CancellationToken ct = default);     
+        //Task<TransferResponse> GetByIdAsync(Guid id, CancellationToken ct = default);
         Task<TransferResponse> GetByIdAsync(Guid id, CancellationToken ct = default);
-
+        Task<IReadOnlyList<TransferResponse>> GetAllAsync(CancellationToken ct = default);
         Task<TransferResponse> PostAsync(Guid id, CancellationToken ct = default);
     }
 }

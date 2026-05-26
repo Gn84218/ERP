@@ -76,6 +76,11 @@ public class GoodsReceiptService : IGoodsReceiptService
 
         if (grn == null) throw new InvalidOperationException("找不到收貨單。");
 
+        var productNames = await _db.Products
+            .AsNoTracking()
+            .Where(x => grn.Lines.Select(l => l.ProductId).Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+
         return new GoodsReceiptResponse(
             grn.Id,
             grn.No,
@@ -84,51 +89,92 @@ public class GoodsReceiptService : IGoodsReceiptService
             grn.Status,
             grn.CreatedAtUtc,
             grn.PostedAtUtc,
-            grn.Lines.Select(l => new GoodsReceiptLineResponse(l.Id, l.ProductId, l.ReceivedQty, l.UnitCost)).ToList()
+            grn.Lines.Select(l => new GoodsReceiptLineResponse(
+                l.Id,
+                l.ProductId,
+                l.ReceivedQty,
+                l.UnitCost,
+                productNames.GetValueOrDefault(l.ProductId)
+            )).ToList()
         );
+    }
+
+    public async Task<IReadOnlyList<GoodsReceiptResponse>> GetAllAsync(CancellationToken ct = default)
+    {
+        return await _db.GoodsReceipts
+            .AsNoTracking()
+            .Include(x => x.Lines)
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .Take(100)
+            .Select(grn => new GoodsReceiptResponse(
+                grn.Id,
+                grn.No,
+                grn.PurchaseOrderId,
+                grn.WarehouseId,
+                grn.Status,
+                grn.CreatedAtUtc,
+                grn.PostedAtUtc,
+                grn.Lines.Select(l => new GoodsReceiptLineResponse(
+                    l.Id,
+                    l.ProductId,
+                    l.ReceivedQty,
+                    l.UnitCost,
+                    _db.Products
+                        .Where(p => p.Id == l.ProductId)
+                        .Select(p => p.Name)
+                        .FirstOrDefault()
+                )).ToList()
+            ))
+            .ToListAsync(ct);
     }
 
     public async Task<GoodsReceiptResponse> PostAsync(Guid id, CancellationToken ct = default)
     {
-        // 讀出 GRN（要更新狀態，所以不能 AsNoTracking）
-        var grn = await _db.GoodsReceipts
-            .Include(x => x.Lines)
-            .SingleOrDefaultAsync(x => x.Id == id, ct);
-
-        if (grn == null) throw new InvalidOperationException("找不到收貨單。");
-        if (grn.Status != GoodsReceiptStatus.Draft)
-            throw new InvalidOperationException("收貨單不是草稿狀態，不能過帳。");
-
-        // ✅ Transaction：GRN 狀態改 Posted + 逐筆入庫 必須一致
-        await using var tx = await _db.Database.BeginTransactionAsync(ct);
-
-        // 1) 狀態改為 Posted（已過帳）
-        grn.Status = GoodsReceiptStatus.Posted;
-        grn.PostedAtUtc = DateTime.UtcNow;
-
-        // 2) 逐筆入庫（寫台帳 + 更新結餘）
-        // RefType/RefNo 讓台帳可以追溯到 GRN
-        foreach (var line in grn.Lines)
+        var strategy = _db.Database.CreateExecutionStrategy();
+        var grnId = await strategy.ExecuteAsync(async () =>
         {
-            if (line.ReceivedQty <= 0)
-                throw new InvalidOperationException("實收數量必須大於 0。");
+            // Transaction：GRN 狀態改 Posted + 逐筆入庫 必須一致
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
-            await _inventory.StockInAsync(new StockInRequest(
-                ProductId: line.ProductId,
-                WarehouseId: grn.WarehouseId,
-                Qty: line.ReceivedQty,
-                RefType: "GRN",           // 台帳來源：收貨單
-                RefNo: grn.No,            // 直接用 GRN 單號追溯
-                Remark: "收貨過帳自動入庫"
-            ), ct);
-        }
+            // 讀出 GRN（要更新狀態，所以不能 AsNoTracking）
+            var grn = await _db.GoodsReceipts
+                .Include(x => x.Lines)
+                .SingleOrDefaultAsync(x => x.Id == id, ct);
 
-        // 3) 存 GRN 狀態
-        await _db.SaveChangesAsync(ct);
+            if (grn == null) throw new InvalidOperationException("找不到收貨單。");
+            if (grn.Status != GoodsReceiptStatus.Draft)
+                throw new InvalidOperationException("收貨單不是草稿狀態，不能過帳。");
 
-        // 4) Commit
-        await tx.CommitAsync(ct);
+            // 1) 狀態改為 Posted（已過帳）
+            grn.Status = GoodsReceiptStatus.Posted;
+            grn.PostedAtUtc = DateTime.UtcNow;
 
-        return await GetByIdAsync(grn.Id, ct);
+            // 2) 逐筆入庫（寫台帳 + 更新結餘）
+            // RefType/RefNo 讓台帳可以追溯到 GRN
+            foreach (var line in grn.Lines)
+            {
+                if (line.ReceivedQty <= 0)
+                    throw new InvalidOperationException("實收數量必須大於 0。");
+
+                await _inventory.StockInAsync(new StockInRequest(
+                    ProductId: line.ProductId,
+                    WarehouseId: grn.WarehouseId,
+                    Qty: line.ReceivedQty,
+                    RefType: "GRN",           // 台帳來源：收貨單
+                    RefNo: grn.No,            // 直接用 GRN 單號追溯
+                    Remark: "收貨過帳自動入庫"
+                ), ct);
+            }
+
+            // 3) 存 GRN 狀態
+            await _db.SaveChangesAsync(ct);
+
+            // 4) Commit
+            await tx.CommitAsync(ct);
+
+            return grn.Id;
+        });
+
+        return await GetByIdAsync(grnId, ct);
     }
 }

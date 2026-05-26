@@ -16,15 +16,19 @@ namespace ERP.API.Controllers
             _svc = svc;
         }
 
-        [HttpPost]
+        [HttpPost("新增銷售單")]
         public async Task<ActionResult<SalesOrderResponse>> Create(CreateSalesOrderRequest req, CancellationToken ct)
         => Ok(await _svc.CreateAsync(req, ct));
 
-        [HttpGet("{id:guid}")]
+        [HttpGet("{id:guid}/銷售單明細")]
         public async Task<ActionResult<SalesOrderResponse>> GetById(Guid id, CancellationToken ct)
             => Ok(await _svc.GetByIdAsync(id, ct));
 
-        [HttpPost("{id:guid}/approve")]
+        [HttpGet("查詢")]
+        public async Task<ActionResult<IReadOnlyList<SalesOrderResponse>>> GetAll(CancellationToken ct)
+            => Ok(await _svc.GetAllAsync(ct));
+
+        [HttpPost("{id:guid}/approve/核准")]
         public async Task<ActionResult<SalesOrderResponse>> Approve(Guid id, CancellationToken ct)
             => Ok(await _svc.ApproveAsync(id, ct));
     }

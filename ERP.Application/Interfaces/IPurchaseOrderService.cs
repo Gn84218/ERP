@@ -13,6 +13,8 @@ namespace ERP.Application.Interfaces
 
         Task<PurchaseOrderResponse> GetByIdAsync(Guid id, CancellationToken ct = default);
 
+        Task<IReadOnlyList<PurchaseOrderResponse>> GetAllAsync(CancellationToken ct = default);
+
         // 核准 PO：Draft → Approved
         Task<PurchaseOrderResponse> ApproveAsync(Guid id, CancellationToken ct = default);
     }

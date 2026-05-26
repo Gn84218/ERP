@@ -43,6 +43,7 @@ namespace ERP.Infrastructure.Persistence
 
 
 
+        //進階設定（約束/索引）等等
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Product>()
@@ -70,7 +71,7 @@ namespace ERP.Infrastructure.Persistence
                 .HasMany(x => x.Lines)
                 .WithOne()
                 .HasForeignKey(x => x.PurchaseOrderId)//必須有外鍵 沒有表頭的 POId，不能插入明細（避免孤兒資料）
-                .OnDelete(DeleteBehavior.Cascade); //Cascade：刪 PO 會刪明細
+                .OnDelete(DeleteBehavior.Cascade); //Cascade：刪表頭會刪明細
 
             modelBuilder.Entity<GoodsReceipt>()
                 .HasIndex(x => x.No)
@@ -109,13 +110,13 @@ namespace ERP.Infrastructure.Persistence
             modelBuilder.Entity<Transfer>()
                 .HasIndex(x => x.No)
                 .IsUnique();
-            //
+          
             modelBuilder.Entity<Transfer>()
                 .HasMany(x => x.Lines)
                 .WithOne()
                 .HasForeignKey(x => x.TransferId)
                 .OnDelete(DeleteBehavior.Cascade);
-            //
+            //帳號
             modelBuilder.Entity<User>()
                 .HasIndex(x => x.Username)
                 .IsUnique();

@@ -21,7 +21,8 @@ namespace ERP.Application.DTOs
     public record TransferLineResponse(
         Guid Id,
         Guid ProductId,
-        decimal Qty
+        decimal Qty,
+        string? ProductName = null
     );
 
     public record TransferResponse(

@@ -33,6 +33,23 @@ namespace ERP.Infrastructure.Services
         //入庫（庫存台帳） 更新等
         public async Task<StockInResponse> StockInAsync(StockInRequest req, CancellationToken ct = default)
         {
+            if (_db.Database.CurrentTransaction != null)
+            {
+                return await StockInCoreAsync(req, ct);
+            }
+
+            var strategy = _db.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var tx = await _db.Database.BeginTransactionAsync(ct);
+                var response = await StockInCoreAsync(req, ct);
+                await tx.CommitAsync(ct);
+                return response;
+            });
+        }
+
+        private async Task<StockInResponse> StockInCoreAsync(StockInRequest req, CancellationToken ct)
+        {
             // (A) 基本防呆/驗證
             // 入庫數量一定要 > 0（入庫用正數；出庫會在下一步做）
             if (req.Qty <= 0)
@@ -54,7 +71,6 @@ namespace ERP.Infrastructure.Services
             // 台帳寫成功但結餘沒更新 > 庫存會亂
             // 結餘更新成功但台帳沒寫 > 查歷史會缺資料
             // 所以要「同生共死」：要嘛一起成功，要嘛一起失敗。
-            await using var tx = await _db.Database.BeginTransactionAsync(ct);//接下來的資料庫操作，要嘛全部成功 要嘛全部失敗回滾（Rollback）
 
             // (C)1) 寫入 StockLedger（庫存台帳）
             // 台帳 = 每一筆庫存異動紀錄（可追溯、可稽核）
@@ -99,8 +115,6 @@ namespace ERP.Infrastructure.Services
 
             // (E) 儲存變更並提交 Transaction
             await _db.SaveChangesAsync(ct);
-            // Commit：交易提交（到這行才算真的完成）
-            await tx.CommitAsync(ct);
 
             // (F) 回傳結果
             return new StockInResponse(
@@ -118,6 +132,23 @@ namespace ERP.Infrastructure.Services
         //出庫
         public async Task<StockOutResponse> StockOutAsync(StockOutRequest req, CancellationToken ct = default)
         {
+            if (_db.Database.CurrentTransaction != null)
+            {
+                return await StockOutCoreAsync(req, ct);
+            }
+
+            var strategy = _db.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var tx = await _db.Database.BeginTransactionAsync(ct);
+                var response = await StockOutCoreAsync(req, ct);
+                await tx.CommitAsync(ct);
+                return response;
+            });
+        }
+
+        private async Task<StockOutResponse> StockOutCoreAsync(StockOutRequest req, CancellationToken ct)
+        {
             // (A) 防呆：出庫 Qty 必須 > 0
             if (req.Qty <= 0) { throw new InvalidOperationException("出庫數量 Qty 必須大於 0。"); }
 
@@ -133,7 +164,6 @@ namespace ERP.Infrastructure.Services
             if (balance.OnHandQty < req.Qty) { throw new InvalidOperationException($"庫存不足：現有 {balance.OnHandQty}，欲出庫 {req.Qty}。"); }
 
             //(D) Transaction：台帳 + 結餘要一起成功(交易功能打開)
-            await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
             // 1) 寫台帳（出庫寫「負數」）
             var ledger = new StockLedger
@@ -154,7 +184,6 @@ namespace ERP.Infrastructure.Services
             balance.UpdatedAtUtc = DateTime.UtcNow;
 
             await _db.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
 
             return new StockOutResponse
             (
@@ -187,7 +216,7 @@ namespace ERP.Infrastructure.Services
         }
 
 
-        //
+        // 庫存台帳查詢（分頁）
         public async Task<PagedResult<StockLedgerItemResponse>> GetLedgerAsync(Guid? productId,
                                                                                Guid? warehouseId,
                                                                                string? refNo,
@@ -234,7 +263,15 @@ namespace ERP.Infrastructure.Services
                     x.TxnAtUtc,
                     x.RefType,
                     x.RefNo,
-                    x.Remark
+                    x.Remark,
+                    _db.Products
+                        .Where(p => p.Id == x.ProductId)
+                        .Select(p => p.Name)
+                        .FirstOrDefault(),
+                    _db.Warehouses
+                        .Where(w => w.Id == x.WarehouseId)
+                        .Select(w => w.Name)
+                        .FirstOrDefault()
                 ))
                 .ToListAsync(ct);
 

@@ -11,7 +11,11 @@ namespace ERP.Application.DTOs
     {
         // 建立商品用的 Request
         public record CreateProductRequest(string Sku, string Name, decimal Cost, decimal Price);
-        // 更新商品用的 Request
+        // 查詢商品用的 Response
         public record ProductResponse(Guid Id, string Sku, string Name, decimal Cost, decimal Price, bool IsActive);
+        // 更新商品用的 Request
+        public record UpdateProductRequest(Guid Id, string Name, decimal Cost, decimal Price, bool IsActive);
+        // 更新商品用的 Response
+        public record UpdateProductResponse(string Name, decimal Cost, decimal Price, bool IsActive);
     }
 }

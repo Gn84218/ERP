@@ -18,16 +18,23 @@ namespace ERP.API.Controllers
         // POST /api/products
         // Body: { "sku": "...", "name": "...", "cost": 10, "price": 20 }
         [Authorize(Roles ="Admin")]
-        [HttpPost]
+        [HttpPost("新增商品")]
         public async Task<ActionResult<ProductResponse>> Create(CreateProductRequest req, CancellationToken ct)
             => Ok(await _svc.CreateAsync(req, ct));
 
         // GET /api/products?page=1&pageSize=20
-        [HttpGet]
+        [HttpGet("查詢分頁")]
         public async Task<ActionResult<IReadOnlyList<ProductResponse>>> GetPaged(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20,
             CancellationToken ct = default)
             => Ok(await _svc.GetPagedAsync(page, pageSize, ct));
+
+        //更新
+        [HttpPut("編輯")]
+        public async Task<ActionResult<ProductResponse>> Update(Guid id, UpdateProductRequest req, CancellationToken ct)
+            => Ok(await _svc.UpdateAsync(id, req, ct));
+
+        //刪除代補
     }
 }

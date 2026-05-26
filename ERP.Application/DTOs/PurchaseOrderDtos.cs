@@ -31,7 +31,8 @@ namespace ERP.Application.DTOs
         Guid Id,
         Guid ProductId,
         decimal Qty,
-        decimal UnitCost
+        decimal UnitCost,
+        string? ProductName = null
     );
 
     /*

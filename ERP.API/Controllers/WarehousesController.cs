@@ -15,12 +15,12 @@ namespace ERP.API.Controllers
 
         // POST /api/warehouses
         // Body: { "code": "WH01", "name": "主倉" }
-        [HttpPost]
+        [HttpPost("新增倉庫")]
         public async Task<ActionResult<WarehouseResponse>> Create(CreateWarehouseRequest req, CancellationToken ct)
             => Ok(await _svc.CreateAsync(req, ct));
 
         // GET /api/warehouses
-        [HttpGet]
+        [HttpGet("獲取倉庫名單")]
         public async Task<ActionResult<IReadOnlyList<WarehouseResponse>>> GetAll(CancellationToken ct)
             => Ok(await _svc.GetAllAsync(ct));
     }
